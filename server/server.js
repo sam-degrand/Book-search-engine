@@ -1,21 +1,40 @@
 const express = require('express');
+const { ApolloServer } = require('apollo-server-express');
+const { typeDefs, resolvers } = require('./schemas');
 const path = require('path');
-const db = require('./config/connection');
-const routes = require('./routes');
+const mongoose = require('mongoose');
 
-const app = express();
 const PORT = process.env.PORT || 3001;
+const app = express();
 
-app.use(express.urlencoded({ extended: true }));
-app.use(express.json());
+async function startApolloServer() {
+  const server = new ApolloServer({
+    typeDefs,
+    resolvers,
+  });
 
-// if we're in production, serve client/build as static assets
-if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, '../client/build')));
+  await server.start();
+
+  server.applyMiddleware({ app });
+
+  app.listen(PORT, () => {
+    console.log(`🚀 Server is running on http://localhost:${PORT}`);
+    console.log(`🚀 GraphQL Playground is available at http://localhost:${PORT}${server.graphqlPath}`);
+  });
 }
 
-app.use(routes);
+mongoose.connect('mongodb://localhost:27017/your-database-name', {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+});
+
+const db = mongoose.connection;
+
+db.on('error', (error) => {
+  console.error('MongoDB connection error:', error);
+});
 
 db.once('open', () => {
-  app.listen(PORT, () => console.log(`🌍 Now listening on localhost:${PORT}`));
+  console.log('Connected to MongoDB');
+  startApolloServer(); // Start Apollo Server once the MongoDB connection is open
 });
